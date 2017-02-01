@@ -9,189 +9,88 @@
 #include <unistd.h>
 #include "mpi.h"
 
+//#define RAND_MAX 10
+
 #define N 1
 #define CLIENTES 1
-#define GLOBALC 1000
+#define GLOBALC 100
 
-sem_t filas[N];
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-pthread_t produtores[CLIENTES];
-pthread_t consumidores[N];
-
-typedef struct Node {
-	int valor;
-	int tamFila;
-	int id;
-	struct Node *prox;
-}Node;
-
-Node *caixa2[N];
-
-int globalC = 0;
-int globalCConsumidos = 0;
-
-int cliente[CLIENTES];
-
-void iCaixa2() {
+void produzir(int produtos[]) {
 	int i;
-	for (i = 0; i < N; i++) {
-		caixa2[i] = malloc(sizeof(Node));
-		caixa2[i]->valor = -1;
-		caixa2[i]->tamFila = 0;
-		caixa2[i]->prox = NULL;
-		caixa2[i]->id = -1;
+	for (i = 0; i <= GLOBALC; i++) {
+		produtos[i] = i;
+		//printf("%i\n", i);
 	}
 }
 
-int realizarCompra() {
-	return globalC + 1;
-}
-
-Node *escolherFila2(int id) {
-	int ret = 0;
-	int menor = caixa2[ret]->tamFila;
-	int moeda = 0;
+int realizarCompra(int tam, int id, int produtos[]) {
 	int i;
-	for (i = 0; i < N; i++) {
-		if (caixa2[i]->tamFila <= menor) {
-			int tmp = ret;
-			menor = caixa2[i]->tamFila;
-			ret = i;
-			if (caixa2[i]->tamFila == caixa2[tmp]->tamFila) {
-				moeda = rand() % 100;
-				if (moeda > 50) {
-					//menor = caixa[i].tamFila;
-					//ret = i;
-				} else {
-					menor = caixa2[tmp]->tamFila;
-					ret = tmp;
-				}
-			}
-		}
-	}
-
-	Node *novo;
-	novo = malloc(sizeof(Node));
-	novo->valor = realizarCompra();
-
-	Node *aux;
-	Node *aux2;
-	aux = caixa2[ret];
-	aux2 = caixa2[ret]->prox;
-	while (aux->prox != NULL) {
-		aux = aux2;
-		aux2 = aux2->prox;
-	}
-	novo->prox = aux2;
-	aux->prox = novo;
-	novo->id = ret;
-	caixa2[ret]->tamFila++;
-
-	return novo;
-}
-
-void *fooCliente(void *thread_id) {
-	int i = 0;
-	int j = 0;
-	Node *compra;
-
-	while (globalC != GLOBALC) {
-		pthread_mutex_lock(&mutex);
-		compra = escolherFila2((int)thread_id);
-		globalC++;
-		pthread_mutex_unlock(&mutex);
-		sem_post(&filas[compra->id]);
-		//usleep(0.01);
-		j = 0;
+	for (i = 0; i < tam; i++) {
+		int j = 0;
 		while (j < 0xffffff) j++;
+		printf("Consumindo compra %i do processo %i.\n", produtos[i], id+1);
 	}
 }
 
-int consumirCompra2(int id) {
-	int ret = 0;
-	Node *lixo;
-	lixo = caixa2[id]->prox;
-	caixa2[id]->prox = lixo->prox;
-	ret = lixo->valor;
-	free(lixo);
-	caixa2[id]->tamFila--;
-	return ret;
+void fooCaixa(int nProc) {
+	int produtos, id, flag = 1;
+	//while (1) {
+	MPI_Recv(&produtos, GLOBALC/(nProc-1), MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+	MPI_Comm_rank(MPI_COMM_WORLD, &id);
+	printf("Pacote de compras recebido pelo processo %i de %i.\n", id+1, nProc);
+	realizarCompra(GLOBALC/(nProc-1), id, &produtos);
+	MPI_Send(&flag, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+	sleep(2);
+	//}
 }
 
-void *fooCaixa(void *thread_id) {
-	int i = 0;
-	int j = 0;
-	int compra = 0;
-	i = (int)thread_id;
-	while (globalCConsumidos != GLOBALC) {
-		if (caixa2[i]->prox != NULL) {		//FILA NAO VAZIA
-			sem_wait(&filas[i]);
-			pthread_mutex_lock(&mutex);
-			compra = consumirCompra2(i);
-			globalCConsumidos++;
-			pthread_mutex_unlock(&mutex);
-		} else if (caixa2[i]->prox == NULL) {		//FILA VAZIA
-			pthread_mutex_lock(&mutex);
-			for (j = 0; j < N; j++) {
-				if ((caixa2[j]->tamFila > 1) && (j != i)) {
-					compra = consumirCompra2(j);
-					globalCConsumidos++;
-					break;
-				}
-			}
-			pthread_mutex_unlock(&mutex);
-		}
-		j = 0;
-		while (j < 0xffffff) j++;
-		//usleep(0.01);
+void fooCliente(int nProc, int produtor[]) {
+	int start = 0, flag = 0, count = 0;
+	int i;
+	//while (1) {
+	for (i = 1; i < nProc; i++) {
+		start = (i-1)*(GLOBALC/(nProc-1));
+		printf("Enviando pacote de compras para o processo %i de %i.\n\tInicio em pacote[%i]\n", i+1, nProc, start);
+		MPI_Send(&produtor[start], GLOBALC/(nProc-1), MPI_INT, i, 0, MPI_COMM_WORLD);
 	}
+	for (i = 1; i < nProc; i++) {
+		MPI_Recv(&flag, 1, MPI_INT, i, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+		count++;
+		printf("Valor de 'count' apos receive: %i\n", count);
+		//if (count == nProc-1) return 0;
+	}
+	//}
 }
 
 int main(int argc, char* argv[]) {
 	MPI_Init(&argc, &argv);
 	int rank;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-	iCaixa2();
+	int nProc;
+	MPI_Comm_size(MPI_COMM_WORLD, &nProc);
 
 	srand(time(NULL));
 
-	printf("Hello world do processo %d\n", rank);
+	printf("Hello world do processo %d\n", rank+1);
+	printf("Numero de processos: %i\n", nProc);
 
-	//Pthread Code -- ignore.
+	int produtor[GLOBALC];
+	//int pacote = GLOBALC/nProc;
 
-	/*int i;
-	for (i = 0; i < N; i++) {
-		sem_init(&filas[i], 0, 0);
-	}
-	for (i = 0; i < CLIENTES; i++) {
-		if (pthread_create(&(produtores[i]), NULL, fooCliente, (void*) i)){
-			printf("Erro na criacao da thread.");
-		}
-	}
-	for (i = 0; i < N; i++) {
-		if (pthread_create(&(consumidores[i]), NULL, fooCaixa, (void*) i)){
-			printf("Erro na criacao da thread.");
-		}
-	}
-	for (i = 0; i < CLIENTES; i++) {
-		pthread_join(produtores[i], NULL);
-	}
-	for (i = 0; i < N; i++) {
-		pthread_join(consumidores[i], NULL);
+	if (rank == 0) {
+		produzir(produtor);
+		fooCliente(nProc, produtor);
+	} else {
+		fooCaixa(nProc);
+		//MPI_Finalize();
 	}
 
-	for (i = 0; i < N; i++) {
-		printf("Tamanho da fila do caixa[%i]: %i.\n", i, caixa2[i]->tamFila);
-	}
-	printf("Numero de compras produzidas: %i.\nNumero de compras consumidas: %i.\n", globalC, globalCConsumidos);
+	/*printf("Chegou aqui\n");
+	int finalize_retcode = MPI_Finalize();
+    if(0 == rank) fprintf(stderr, "Process, return_code\n");
+    fprintf(stderr, "%i, %i\n", rank, finalize_retcode);
+	*/
 
-	for (i = 0; i < N; i++) {
-		free(caixa2[i]);
-	}*/
-
-	//pthread_exit(NULL);
 	MPI_Finalize();
 
 	return 0;
