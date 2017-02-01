@@ -150,12 +150,18 @@ void *fooCaixa(void *thread_id) {
 
 int main(int argc, char* argv[]) {
 	MPI_Init(&argc, &argv);
+	int rank;
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
 	iCaixa2();
 
 	srand(time(NULL));
-	//iCaixa();
-	int i;
+
+	printf("Hello world do processo %d\n", rank);
+
+	//Pthread Code -- ignore.
+
+	/*int i;
 	for (i = 0; i < N; i++) {
 		sem_init(&filas[i], 0, 0);
 	}
@@ -183,7 +189,10 @@ int main(int argc, char* argv[]) {
 
 	for (i = 0; i < N; i++) {
 		free(caixa2[i]);
-	}
+	}*/
 
-	pthread_exit(NULL);
+	//pthread_exit(NULL);
+	MPI_Finalize();
+
+	return 0;
 }
