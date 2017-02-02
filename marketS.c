@@ -94,7 +94,7 @@ void fooCliente() {
 			globalC++;
 			//usleep(0.01);
 			j = 0;
-			while (j < 0xffffff) j++;
+			//while (j < 0xffffff) j++;
 		}
 	
 }
@@ -116,7 +116,7 @@ void fooCaixa() {
 	int j = 0;
 	int compra = 0;
 		for (i; i < N; i++) {
-			if (caixa2[i]->prox != NULL) {			//Falta fazer pegar cliente de outra fila - se houver
+			if (caixa2[i]->prox != NULL) {
 				compra = consumirCompra2(i);
 				globalCConsumidos++;
 			}
