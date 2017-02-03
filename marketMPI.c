@@ -81,6 +81,8 @@ void fooCaixa(int nCaixas, int produtos[]) {
 
 int main(int argc, char* argv[]) {
 	MPI_Init(&argc, &argv);
+	double start = 0, finish = 0;
+	start = MPI_Wtime();
 	int rank;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	int nProc;
@@ -100,6 +102,8 @@ int main(int argc, char* argv[]) {
 	} else
 		fooCaixa(nCaixas, produtos);
 
+	finish = MPI_Wtime();
+	printf("Time elapsed: %f\n", finish-start);
 	MPI_Finalize();
 
 	return 0;
