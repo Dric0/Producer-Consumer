@@ -94,7 +94,7 @@ void fooCliente() {
 			globalC++;
 			//usleep(0.01);
 			j = 0;
-			//while (j < 0xffffff) j++;
+			while (j < 0xffffff) j++;
 		}
 	
 }
